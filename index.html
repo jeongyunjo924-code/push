@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>도형 밀기 시뮬레이션</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
+  #app {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    display: flex; flex-direction: column;
+    background: #FBF7F0;
+    color: #2B2A28;
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    padding:
+      max(env(safe-area-inset-top), clamp(8px, 1.5vh, 16px))
+      max(env(safe-area-inset-right), clamp(10px, 2vw, 20px))
+      max(env(safe-area-inset-bottom), clamp(8px, 1.5vh, 16px))
+      max(env(safe-area-inset-left), clamp(10px, 2vw, 20px));
+    overflow: hidden;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap {
+    max-width: min(1100px, 100%);
+    width: 100%;
+    margin: 0 auto;
+    height: 100%;
+    min-height: 0;
+    display: flex; flex-direction: column;
+  }
+  .title {
+    font-size: clamp(16px, 2.4vh, 24px);
+    font-weight: 800; margin: 0; color: #1F4B3F; flex-shrink: 0;
+  }
+  .subtitle {
+    margin: 2px 0 8px; color: #6B6459;
+    font-size: clamp(11px, 1.4vh, 14px); flex-shrink: 0;
+  }
+  @media (max-width: 600px) { .subtitle { display: none; } }
+  /* 화면 높이가 낮을 때(폰 가로 등): 제목을 숨기고 여백·버튼을 줄여 한 화면에 맞춤 */
+  @media (max-height: 480px) {
+    .title, .subtitle { display: none; }
+    .btn { min-height: 30px; padding: 5px 10px; font-size: 12px; }
+    .btn.pill { min-height: 30px; padding: 5px 12px; }
+    .btn.small { min-height: 28px; padding: 4px 10px; }
+    .btn.main { padding: 5px 0; }
+    .shape-btns { margin-bottom: 4px; }
+    .draw-bar { margin-bottom: 4px; padding: 4px 10px; }
+    .controls { margin-top: 4px; padding: 6px 8px; display: flex; flex-wrap: wrap; column-gap: 12px; }
+    .controls .row { margin-bottom: 4px; }
+    .controls .actions { flex: 1 1 100%; margin-top: 2px; }
+    .status { margin-top: 4px; padding: 5px 10px; }
+  }
+
+  .btn {
+    padding: 9px 14px; min-height: 38px;
+    border-radius: 10px; border: 2px solid #DDD5C4;
+    background: #fff; color: #2B2A28;
+    font-weight: 700; font-size: 13px; font-family: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn.on-green { background: #1F4B3F; color: #fff; border-color: #1F4B3F; }
+  .btn.on-orange { background: #C1622D; color: #fff; border-color: #C1622D; }
+  .btn.pill { padding: 8px 14px; min-height: 36px; border-radius: 999px; }
+  .btn.small { padding: 6px 12px; min-height: 32px; font-size: 12px; }
+  .btn.solid { background: #1F4B3F; color: #fff; border-color: #1F4B3F; }
+  .btn.main { flex: 1; font-size: 15px; padding: 9px 0; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.main:disabled { opacity: 0.5; }
+
+  .shape-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; flex-shrink: 0; }
+
+  .draw-bar {
+    margin-bottom: 8px; padding: 6px 12px;
+    background: #FFF3E9; border: 1px solid #F0D3B8; border-radius: 10px;
+    font-size: 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 6px; flex-shrink: 0;
+  }
+  .draw-bar[hidden] { display: none; }
+  .draw-actions { display: flex; gap: 6px; }
+
+  .panels {
+    display: flex; justify-content: center; align-items: center;
+    flex: 1; min-height: 0; min-width: 0; overflow: hidden; gap: 8px;
+  }
+  .panel { flex: none; display: flex; flex-direction: column; align-items: center; }
+  .panel-title {
+    font-weight: 800; font-size: 14px; line-height: 20px; height: 20px;
+    margin-bottom: 2px; text-align: center;
+  }
+  .grid-svg { background: #fff; border-radius: 12px; display: block; }
+
+  .controls {
+    margin-top: 8px; flex-shrink: 0;
+    background: #fff; border: 1px solid #EBE4D6; border-radius: 12px; padding: 10px;
+  }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .label { width: 40px; font-weight: 700; color: #6B6459; font-size: 13px; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .actions { display: flex; gap: 8px; margin-top: 6px; }
+
+  .status {
+    margin-top: 6px; flex-shrink: 0; padding: 8px 14px;
+    background: #F0F5F2; border: 1px solid #D7E5DE; border-radius: 10px;
+    font-size: clamp(12px, 1.6vh, 14px); font-weight: 600; color: #1F4B3F;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="wrap">
+    <h1 class="title">도형 밀기 시뮬레이션</h1>
+    <p class="subtitle">도형을 고르거나 직접 그린 뒤, 밀기 전과 민 후의 모습을 비교해보세요.</p>
+
+    <div class="shape-btns" id="shapeBtns"></div>
+
+    <div class="draw-bar" id="drawBar" hidden>
+      <span id="drawMsg"></span>
+      <div class="draw-actions">
+        <button class="btn small solid" id="finishBtn">도형 완성</button>
+        <button class="btn small" id="clearBtn">다시 그리기</button>
+      </div>
+    </div>
+
+    <div class="panels" id="panels">
+      <div class="panel" id="panelL">
+        <div class="panel-title" style="color:#1F4B3F">밀기 전</div>
+        <svg class="grid-svg" id="svgL" style="border:2px solid #1F4B3F33"></svg>
+      </div>
+      <div class="panel" id="panelR">
+        <div class="panel-title" style="color:#C1622D">민 후</div>
+        <svg class="grid-svg" id="svgR" style="border:2px solid #C1622D33"></svg>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="row"><span class="label">방향</span><div class="btns" id="dirBtns"></div></div>
+      <div class="row"><span class="label">거리</span><div class="btns" id="distBtns"></div></div>
+      <div class="actions">
+        <button class="btn main solid" id="actionBtn">밀기</button>
+        <button class="btn" id="resetBtn" style="padding:9px 18px">초기화</button>
+      </div>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- 격자 설정 ----------
+  var GRID_SIZE = 12;               // 12 x 12 칸
+  var CELL = 28;                    // 칸 하나(viewBox 단위)
+  var PAD = 20;
+  var SVG_SIZE = GRID_SIZE * CELL + PAD * 2;
+  var NS = 'http://www.w3.org/2000/svg';
+
+  function toPx(p) { return { x: PAD + p.x * CELL, y: PAD + p.y * CELL }; }
+
+  // ---------- 기본 도형 (격자 좌표, 4칸 x 4칸 크기로 가운데 배치) ----------
+  var PRESETS = {
+    '집 모양': [
+      { x: 5, y: 8 }, { x: 7, y: 8 }, { x: 7, y: 6 }, { x: 8, y: 6 },
+      { x: 7, y: 4 }, { x: 5, y: 4 }, { x: 4, y: 6 }, { x: 5, y: 6 }
+    ],
+    '삼각형': [
+      { x: 4, y: 4 }, { x: 4, y: 8 }, { x: 8, y: 8 }
+    ],
+    '화살표': [
+      { x: 6, y: 4 }, { x: 8, y: 6 }, { x: 7, y: 6 }, { x: 7, y: 8 },
+      { x: 5, y: 8 }, { x: 5, y: 6 }, { x: 4, y: 6 }
+    ]
+  };
+  var DRAW = '직접 그리기';
+  var TRI = '삼각형';
+  var HOUSE = '집 모양';
+  var DIRS = [
+    { key: 'up',    label: '↑ 위쪽',   name: '위쪽',   dx: 0,  dy: -1 },
+    { key: 'down',  label: '↓ 아래쪽', name: '아래쪽', dx: 0,  dy: 1 },
+    { key: 'left',  label: '← 왼쪽',   name: '왼쪽',   dx: -1, dy: 0 },
+    { key: 'right', label: '→ 오른쪽', name: '오른쪽', dx: 1,  dy: 0 }
+  ];
+  var DISTS = [1, 2, 3, 4, 5, 6];
+  var DEFAULT_STATUS = "도형을 고르고 '밀기'를 눌러보세요.";
+
+  // ---------- 상태 ----------
+  var state = {
+    shapeName: '화살표',
+    customPoints: [],
+    drawingMode: false,
+    direction: 'right',
+    dist: 3,
+    moved: 0,                 // 지금까지 밀린 칸 수 (애니메이션 중 소수)
+    vec: { x: 0, y: 0 },      // 마지막으로 민 방향
+    status: DEFAULT_STATUS,
+    isAnimating: false
+  };
+  var rafId = null;
+  var pauseId = null;
+  var moveGroup = null;
+  var arrowGroup = null;
+
+  // ---------- DOM 참조 ----------
+  var $ = function (id) { return document.getElementById(id); };
+  var shapeBtns = $('shapeBtns'), drawBar = $('drawBar'), drawMsg = $('drawMsg');
+  var finishBtn = $('finishBtn'), clearBtn = $('clearBtn');
+  var panels = $('panels'), panelL = $('panelL'), panelR = $('panelR');
+  var svgL = $('svgL'), svgR = $('svgR');
+  var dirBtns = $('dirBtns'), distBtns = $('distBtns');
+  var actionBtn = $('actionBtn'), resetBtn = $('resetBtn'), statusEl = $('status');
+
+  [svgL, svgR].forEach(function (s) {
+    s.setAttribute('viewBox', '0 0 ' + SVG_SIZE + ' ' + SVG_SIZE);
+  });
+
+  // ---------- 헬퍼 ----------
+  function S(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function dirOf(key) { return DIRS.filter(function (d) { return d.key === key; })[0]; }
+  function getPoints() {
+    return state.shapeName === DRAW ? state.customPoints : PRESETS[state.shapeName];
+  }
+  function hasShape() {
+    var pts = getPoints();
+    var unfinished = state.shapeName === DRAW && state.drawingMode;
+    return !!pts && pts.length >= 3 && !unfinished;
+  }
+  function bbox(pts) {
+    var b = { minx: 1e9, maxx: -1e9, miny: 1e9, maxy: -1e9 };
+    pts.forEach(function (p) {
+      b.minx = Math.min(b.minx, p.x); b.maxx = Math.max(b.maxx, p.x);
+      b.miny = Math.min(b.miny, p.y); b.maxy = Math.max(b.maxy, p.y);
+    });
+    return b;
+  }
+  // 격자 밖으로 나가지 않고 밀 수 있는 최대 칸 수
+  function maxDist(key) {
+    if (!hasShape()) return GRID_SIZE;
+    var b = bbox(getPoints());
+    if (key === 'right') return GRID_SIZE - b.maxx;
+    if (key === 'left') return b.minx;
+    if (key === 'up') return b.miny;
+    return GRID_SIZE - b.maxy;
+  }
+  function clampDist() {
+    var m = maxDist(state.direction);
+    if (hasShape() && m >= 1 && state.dist > m) state.dist = m;
+  }
+  function canMove() {
+    var m = maxDist(state.direction);
+    return hasShape() && !state.isAnimating && !state.drawingMode && m >= 1 && state.dist <= m;
+  }
+  function polyStr(pts) {
+    return pts.map(function (p) { var q = toPx(p); return q.x + ',' + q.y; }).join(' ');
+  }
+  function polyStrIdx(pts, idxs) {
+    return polyStr(idxs.map(function (i) { return pts[i]; }));
+  }
+
+  // ---------- 그리기 요소 ----------
+  function drawGrid(parent) {
+    var g = S('g', {}, parent);
+    for (var i = 0; i <= GRID_SIZE; i++) {
+      var a = toPx({ x: i, y: 0 }), b = toPx({ x: i, y: GRID_SIZE });
+      S('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: '#E4DFD3', 'stroke-width': 1 }, g);
+      var c = toPx({ x: 0, y: i }), d = toPx({ x: GRID_SIZE, y: i });
+      S('line', { x1: c.x, y1: c.y, x2: d.x, y2: d.y, stroke: '#E4DFD3', 'stroke-width': 1 }, g);
+    }
+  }
+  function drawHead(parent, pts) {
+    if (!pts || !pts.length) return;
+    var h = toPx(pts[0]);
+    S('circle', { cx: h.x, cy: h.y, r: 6, fill: '#F2B84B', stroke: '#fff', 'stroke-width': 1.5 }, parent);
+  }
+  function drawShape(parent, accent) {
+    var pts = getPoints();
+    var g = S('g', {}, parent);
+    if (state.shapeName === HOUSE) {
+      S('polygon', { points: polyStrIdx(pts, [0, 1, 2, 7]), fill: '#FFD666', stroke: '#D9A32B', 'stroke-width': 2.5, 'stroke-linejoin': 'round' }, g);
+      S('polygon', { points: polyStrIdx(pts, [6, 3, 4, 5]), fill: '#6FD8F5', stroke: '#2AA9CE', 'stroke-width': 2.5, 'stroke-linejoin': 'round' }, g);
+    } else if (state.shapeName === TRI) {
+      S('polygon', { points: polyStr(pts), fill: 'none', stroke: '#8BC34A', 'stroke-width': 4, 'stroke-linejoin': 'round' }, g);
+    } else {
+      S('polygon', { points: polyStr(pts), fill: accent + '55', stroke: accent, 'stroke-width': 2.5, 'stroke-linejoin': 'round' }, g);
+    }
+    drawHead(g, pts);
+  }
+  // 처음 위치를 알려주는 점선 윤곽
+  function drawGhost(parent) {
+    S('polygon', {
+      points: polyStr(getPoints()), fill: 'none', stroke: '#8A8578', 'stroke-width': 1.5,
+      'stroke-dasharray': '4 3', 'stroke-linejoin': 'round', opacity: 0.7
+    }, parent);
+  }
+  // 민 거리를 보여주는 화살표 (처음 위치의 노란 점 → 지금 위치의 노란 점)
+  function drawMoveArrow(parent, p0, p1, cells) {
+    var dx = p1.x - p0.x, dy = p1.y - p0.y;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 8) return;
+    var ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+    var hl = Math.min(14, len * 0.6);
+    var bx = p1.x - ux * hl, by = p1.y - uy * hl;
+    var color = '#F2984B';
+    var g = S('g', {}, parent);
+    S('line', { x1: p0.x, y1: p0.y, x2: bx, y2: by, stroke: color, 'stroke-width': 3, 'stroke-linecap': 'round' }, g);
+    S('polygon', {
+      points: p1.x + ',' + p1.y + ' ' + (bx + nx * 7) + ',' + (by + ny * 7) + ' ' + (bx - nx * 7) + ',' + (by - ny * 7),
+      fill: color
+    }, g);
+    var mx = (p0.x + p1.x) / 2, my = (p0.y + p1.y) / 2;
+    var horizontal = Math.abs(dx) >= Math.abs(dy);
+    var t = S('text', {
+      x: horizontal ? mx : mx + 12, y: horizontal ? my - 10 : my + 5,
+      'text-anchor': horizontal ? 'middle' : 'start',
+      'font-size': 15, 'font-weight': 800, fill: '#C1622D',
+      stroke: '#fff', 'stroke-width': 4, 'stroke-linejoin': 'round', 'paint-order': 'stroke'
+    }, g);
+    t.textContent = Math.max(1, Math.ceil(cells - 0.001)) + '칸';
+  }
+
+  // ---------- 렌더링 ----------
+  function renderShapeButtons() {
+    shapeBtns.textContent = '';
+    Object.keys(PRESETS).forEach(function (name) {
+      var b = document.createElement('button');
+      b.className = 'btn pill' + (state.shapeName === name ? ' on-green' : '');
+      b.textContent = name;
+      b.addEventListener('click', function () { selectShape(name); });
+      shapeBtns.appendChild(b);
+    });
+    var d = document.createElement('button');
+    d.className = 'btn pill' + (state.shapeName === DRAW ? ' on-orange' : '');
+    d.textContent = '✏️ 직접 그리기';
+    d.addEventListener('click', startDrawing);
+    shapeBtns.appendChild(d);
+  }
+
+  function renderDrawBar() {
+    var show = state.shapeName === DRAW;
+    drawBar.hidden = !show;
+    if (!show) return;
+    var n = state.customPoints.length;
+    drawMsg.textContent = state.drawingMode
+      ? '왼쪽 모눈판의 점을 순서대로 클릭해 도형을 그려보세요. (현재 점 ' + n + '개)'
+      : '도형이 완성되었습니다. 밀기를 진행해보세요.';
+    finishBtn.disabled = !(state.drawingMode && n >= 3);
+  }
+
+  function renderPanels() {
+    svgL.textContent = '';
+    svgR.textContent = '';
+    var has = hasShape();
+
+    // 밀기 전 (왼쪽)
+    drawGrid(svgL);
+    if (has) drawShape(svgL, '#1F4B3F');
+    if (state.shapeName === DRAW) {
+      state.customPoints.forEach(function (p) {
+        var q = toPx(p);
+        S('circle', { cx: q.x, cy: q.y, r: 5, fill: '#C1622D', stroke: '#fff', 'stroke-width': 1.5 }, svgL);
+      });
+    }
+    var drawable = state.shapeName === DRAW;
+    svgL.style.touchAction = drawable ? 'none' : 'manipulation';
+    svgL.style.cursor = drawable ? 'crosshair' : 'default';
+
+    // 민 후 (오른쪽)
+    drawGrid(svgR);
+    moveGroup = null;
+    if (has) {
+      drawGhost(svgR);
+      moveGroup = S('g', {}, svgR);
+      drawShape(moveGroup, '#C1622D');
+    }
+    arrowGroup = S('g', {}, svgR);
+    updateDynamic();
+  }
+
+  // 애니메이션 중 매 프레임 갱신되는 부분
+  function updateDynamic() {
+    var ox = state.vec.x * state.moved * CELL;
+    var oy = state.vec.y * state.moved * CELL;
+    if (moveGroup) moveGroup.setAttribute('transform', 'translate(' + ox + ' ' + oy + ')');
+    arrowGroup.textContent = '';
+    if (hasShape() && state.moved > 0.02) {
+      var p0 = toPx(getPoints()[0]);
+      drawMoveArrow(arrowGroup, p0, { x: p0.x + ox, y: p0.y + oy }, state.moved);
+    }
+  }
+
+  function renderControls() {
+    var max = maxDist(state.direction);
+    Array.prototype.forEach.call(dirBtns.children, function (b, i) {
+      b.className = 'btn' + (state.direction === DIRS[i].key ? ' on-green' : '');
+      b.disabled = hasShape() && maxDist(DIRS[i].key) < 1;
+    });
+    Array.prototype.forEach.call(distBtns.children, function (b, i) {
+      var d = DISTS[i];
+      b.className = 'btn' + (state.dist === d ? ' on-orange' : '');
+      b.disabled = hasShape() && d > max;
+    });
+    actionBtn.disabled = !canMove();
+  }
+
+  function renderStatus() { statusEl.textContent = state.status; }
+
+  function render() {
+    renderShapeButtons();
+    renderDrawBar();
+    renderPanels();
+    renderControls();
+    renderStatus();
+    layoutPanels();
+  }
+
+  // ---------- 동작 ----------
+  function handleGridClick(e) {
+    if (state.shapeName !== DRAW || !state.drawingMode) return;
+    var ctm = svgL.getScreenCTM();
+    if (!ctm) return;
+    var pt = svgL.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    var p = pt.matrixTransform(ctm.inverse());
+    var gx = Math.round((p.x - PAD) / CELL);
+    var gy = Math.round((p.y - PAD) / CELL);
+    if (gx < 0 || gx > GRID_SIZE || gy < 0 || gy > GRID_SIZE) return;
+    state.customPoints.push({ x: gx, y: gy });
+    renderDrawBar();
+    renderPanels();
+    renderControls();
+    layoutPanels();
+  }
+
+  // 한 칸(from → to)을 부드럽게 이동
+  function animateSegment(from, to, duration, onDone) {
+    var start = performance.now();
+    function tick(now) {
+      var t = Math.min(1, (now - start) / duration);
+      var eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      state.moved = from + (to - from) * eased;
+      updateDynamic();
+      if (t < 1) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        state.moved = to;
+        updateDynamic();
+        onDone();
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function startMove() {
+    if (!canMove()) return;
+    var d = dirOf(state.direction);
+    var total = state.dist;
+    state.isAnimating = true;
+    state.moved = 0;
+    state.vec = { x: d.dx, y: d.dy };
+    renderControls();
+
+    var step = 0;
+    function doStep() {
+      step += 1;
+      state.status = d.name + '으로 ' + step + '칸 미는 중... (' + step + '/' + total + '칸)';
+      renderStatus();
+      animateSegment(step - 1, step, 450, function () {
+        if (step < total) {
+          pauseId = setTimeout(doStep, 100);
+        } else {
+          state.isAnimating = false;
+          state.status = d.name + '으로 ' + total + '칸 밀었습니다. 무엇이 바뀌고, 무엇이 그대로인가요?';
+          renderStatus();
+          renderControls();
+        }
+      });
+    }
+    doStep();
+  }
+
+  function reset() {
+    if (rafId) cancelAnimationFrame(rafId);
+    if (pauseId) clearTimeout(pauseId);
+    state.isAnimating = false;
+    state.moved = 0;
+    state.vec = { x: 0, y: 0 };
+    state.status = DEFAULT_STATUS;
+  }
+
+  function selectShape(name) {
+    reset();
+    state.shapeName = name;
+    state.drawingMode = false;
+    clampDist();
+    render();
+  }
+  function startDrawing() {
+    reset();
+    state.shapeName = DRAW;
+    state.customPoints = [];
+    state.drawingMode = true;
+    render();
+  }
+  function finishDrawing() {
+    if (state.customPoints.length >= 3) {
+      state.drawingMode = false;
+      clampDist();
+      render();
+    }
+  }
+  function clearDrawing() {
+    reset();
+    state.customPoints = [];
+    state.drawingMode = true;
+    render();
+  }
+
+  // ---------- 화면 크기에 맞춰 두 격자판 크기 계산 (아이폰 주소창 변화 대응) ----------
+  function layoutPanels() {
+    var w = panels.clientWidth;
+    var h = panels.clientHeight;
+    var gap = w < 600 ? 8 : 20;
+    var side = Math.floor(Math.max(80, Math.min((w - gap) / 2, h - 24, 480)));
+    panels.style.gap = gap + 'px';
+    [[panelL, svgL], [panelR, svgR]].forEach(function (pair) {
+      pair[0].style.width = side + 'px';
+      pair[1].setAttribute('width', side);
+      pair[1].setAttribute('height', side);
+    });
+  }
+
+  // ---------- 초기화 ----------
+  DIRS.forEach(function (d) {
+    var b = document.createElement('button');
+    b.textContent = d.label;
+    b.style.minWidth = '84px';
+    b.addEventListener('click', function () {
+      state.direction = d.key;
+      clampDist();
+      renderControls();
+    });
+    dirBtns.appendChild(b);
+  });
+  DISTS.forEach(function (n) {
+    var b = document.createElement('button');
+    b.textContent = n + '칸';
+    b.style.minWidth = '56px';
+    b.addEventListener('click', function () { state.dist = n; renderControls(); });
+    distBtns.appendChild(b);
+  });
+
+  svgL.addEventListener('click', handleGridClick);
+  finishBtn.addEventListener('click', finishDrawing);
+  clearBtn.addEventListener('click', clearDrawing);
+  actionBtn.addEventListener('click', startMove);
+  resetBtn.addEventListener('click', function () { reset(); render(); });
+
+  window.addEventListener('resize', layoutPanels);
+  window.addEventListener('orientationchange', layoutPanels);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', layoutPanels);
+  if (window.ResizeObserver) new ResizeObserver(layoutPanels).observe(panels);
+
+  render();
+})();
+
+</script>
+</body>
+</html>
