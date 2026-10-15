@@ -231,10 +231,17 @@
   })();
 
   // ---------- 모눈판 설정 (교과서처럼 큰 모눈판 하나) ----------
-  var N = 19;                       // 19 x 19 칸
-  var U = 30;                       // 칸 하나(viewBox 단위)
+  var PRESET_N = 19;                // 기본 도형: 교과서처럼 19 x 19 칸
+  var DRAW_N = 6;                   // 직접 그리기: 활동지와 같은 6 x 6 칸
+  var N = PRESET_N;
+  var U = 30;                       // 칸 하나(viewBox 단위), 칸 수에 따라 바뀜
   var PAD = 16;
-  var VB = N * U + PAD * 2;
+  var VB = PRESET_N * 30 + PAD * 2;   // 모눈판 크기는 항상 같게 유지
+  // 지금 고른 도형에 맞춰 모눈 칸 수와 칸 크기를 정함
+  function applyGrid() {
+    N = state.shapeName === DRAW ? DRAW_N : PRESET_N;
+    U = (VB - PAD * 2) / N;
+  }
   var NS = 'http://www.w3.org/2000/svg';
   var GREEN = '#5FA136';
   function toPx(p) { return { x: PAD + p.x * U, y: PAD + p.y * U }; }
@@ -516,6 +523,7 @@
   }
 
   function render() {
+    applyGrid();
     fixChoice();
     renderShapeButtons();
     renderDrawBar();
